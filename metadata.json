@@ -1,0 +1,8 @@
+{
+  "name": "Nexus Social",
+  "description": "A social operating system combining short-form discovery, community profiles, and real-time messaging.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "username": { "type": "string" },
+        "displayName": { "type": "string" },
+        "bio": { "type": "string" },
+        "avatarUrl": { "type": "string", "format": "uri" },
+        "coverUrl": { "type": "string", "format": "uri" },
+        "followersCount": { "type": "integer" },
+        "followingCount": { "type": "integer" },
+        "postsCount": { "type": "integer" },
+        "isVerified": { "type": "boolean" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["email", "username", "displayName", "createdAt", "updatedAt"]
+    },
+    "Username": {
+      "title": "Username",
+      "description": "Username reservation mapping",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" }
+      },
+      "required": ["userId"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Social media post",
+      "type": "object",
+      "properties": {
+        "authorId": { "type": "string" },
+        "caption": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["text", "image", "video"] },
+        "mediaUrl": { "type": "string", "format": "uri" },
+        "thumbnailUrl": { "type": "string", "format": "uri" },
+        "visibility": { "type": "string", "enum": ["public", "followers"] },
+        "likesCount": { "type": "integer" },
+        "commentsCount": { "type": "integer" },
+        "sharesCount": { "type": "integer" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["authorId", "mediaType", "createdAt", "visibility"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Post comment",
+      "type": "object",
+      "properties": {
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["postId", "authorId", "text", "createdAt"]
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "User follow relationship",
+      "type": "object",
+      "properties": {
+        "followerId": { "type": "string" },
+        "followingId": { "type": "string" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["followerId", "followingId", "createdAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Chat thread",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["direct", "group"] },
+        "memberIds": { "type": "array", "items": { "type": "string" } },
+        "lastMessageText": { "type": "string" },
+        "lastMessageAt": { "type": "integer" },
+        "createdAt": { "type": "integer" },
+        "updatedAt": { "type": "integer" }
+      },
+      "required": ["type", "memberIds", "createdAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Individual message",
+      "type": "object",
+      "properties": {
+        "conversationId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "type": { "type": "string", "enum": ["text", "image", "video", "audio", "shared_post"] },
+        "text": { "type": "string" },
+        "mediaUrl": { "type": "string", "format": "uri" },
+        "sharedPostId": { "type": "string" },
+        "createdAt": { "type": "integer" },
+        "seenBy": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["conversationId", "senderId", "type", "createdAt"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "User notification",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "actorId": { "type": "string" },
+        "type": { "type": "string", "enum": ["like", "comment", "follow", "message"] },
+        "entityId": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "integer" }
+      },
+      "required": ["userId", "actorId", "type", "read", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": "UserProfile", "description": "User profiles" },
+    "/usernames/{username}": { "schema": "Username", "description": "Username uniqueness mapping" },
+    "/posts/{postId}": { "schema": "Post", "description": "Social posts" },
+    "/posts/{postId}/comments/{commentId}": { "schema": "Comment", "description": "Post comments" },
+    "/posts/{postId}/likes/{userId}": { "schema": "object", "description": "Post likes" },
+    "/follows/{followId}": { "schema": "Follow", "description": "Follow graph" },
+    "/conversations/{conversationId}": { "schema": "Conversation", "description": "Chat threads" },
+    "/conversations/{conversationId}/messages/{messageId}": { "schema": "Message", "description": "Chat messages" },
+    "/notifications/{notificationId}": { "schema": "AppNotification", "description": "User notifications" }
+  }
+}
