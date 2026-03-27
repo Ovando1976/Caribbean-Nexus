@@ -1,133 +1,354 @@
-import React from 'react';
+import React from "react";
+import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams } from "react-router-dom";
 
-type Category = 'All' | 'Beach' | 'Food' | 'Shopping' | 'Landmark';
-type Tab = 'places' | 'beaches' | 'restaurants' | 'shops' | 'passport' | 'concierge' | 'transit' | 'essentials';
-
-type Business = {
-  id: string;
-  name: string;
-  category: Exclude<Category, 'All'>;
-  featured?: boolean;
-  rating: number;
-  location: string;
-  image: string;
-  description: string;
-};
-
-const businesses: Business[] = [
-  { id: 'stt-magens', name: 'Magens Bay', category: 'Beach', featured: true, rating: 4.8, location: 'Magens Bay Rd', image: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?auto=format&fit=crop&w=1200&q=80', description: 'Voted among the world\'s best beaches with calm turquoise water.' },
-  { id: 'stt-lindquist', name: 'Lindquist Beach', category: 'Beach', featured: true, rating: 4.9, location: 'Smith Bay Park', image: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=1200&q=80', description: 'Pristine white sand, crystal-clear water, and postcard views.' },
-  { id: 'stt-gladys', name: "Gladys' Cafe", category: 'Food', featured: true, rating: 4.9, location: 'Royal Dane Mall', image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80', description: 'Authentic Caribbean flavor and island comfort dishes.' },
-  { id: 'stt-greengos', name: 'Greengos Cantina', category: 'Food', rating: 4.7, location: 'Hibiscus Alley', image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=1200&q=80', description: 'Town favorite for tacos, margaritas, and casual nightlife.' },
-  { id: 'stt-ahr', name: 'AH Riise Mall', category: 'Shopping', featured: true, rating: 4.7, location: 'Main Street', image: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1200&q=80', description: 'Duty-free shopping for jewelry, spirits, and gifts.' },
-  { id: 'stt-fort', name: 'Fort Christian', category: 'Landmark', rating: 4.6, location: 'Waterfront', image: 'https://images.unsplash.com/photo-1534531173927-aeb928d54385?auto=format&fit=crop&w=1200&q=80', description: 'Historic Danish fort and one of St. Thomas\' oldest landmarks.' }
-];
-
-const tabToCategory: Record<Tab, Category> = {
-  places: 'All', beaches: 'Beach', restaurants: 'Food', shops: 'Shopping',
-  passport: 'All', concierge: 'All', transit: 'All', essentials: 'All'
-};
+import { generateDeterministicAudit } from "../lib/audit";
+import {
+  getAllBusinesses,
+  getBusinessById,
+  setPipelineStage,
+  updateBusiness,
+} from "../lib/firebase/usvi-businesses";
+import { estimatePipelineValue } from "../lib/scoring";
+import { PIPELINE_STAGES, type BusinessRecord, type PipelineStage } from "../types/business";
 
 export default function App() {
-  const [activeTab, setActiveTab] = React.useState<Tab>('places');
-  const [search, setSearch] = React.useState('');
-  const [selected, setSelected] = React.useState<Business | null>(null);
+  return (
+    <BrowserRouter>
+      <div className="min-h-screen bg-slate-950 text-white">
+        <header className="border-b border-slate-800 bg-slate-900/70">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+            <h1 className="text-lg font-semibold">USVI Business Intelligence Hub</h1>
+            <nav className="flex items-center gap-3 text-sm">
+              <Link className="rounded-lg px-3 py-1.5 hover:bg-slate-800" to="/">Dashboard</Link>
+              <Link className="rounded-lg px-3 py-1.5 hover:bg-slate-800" to="/businesses">Businesses</Link>
+            </nav>
+          </div>
+        </header>
 
-  const filtered = React.useMemo(() => {
-    const cat = tabToCategory[activeTab];
-    return businesses
-      .filter((b) => (cat === 'All' ? true : b.category === cat))
-      .filter((b) => `${b.name} ${b.category} ${b.location}`.toLowerCase().includes(search.toLowerCase()))
-      .sort((a, b) => Number(b.featured) - Number(a.featured));
-  }, [activeTab, search]);
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <Routes>
+            <Route path="/" element={<DashboardRoute />} />
+            <Route path="/businesses" element={<BusinessesRoute />} />
+            <Route path="/businesses/:id" element={<BusinessDetailRoute />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+      </div>
+    </BrowserRouter>
+  );
+}
 
-  const utilityTab = ['passport', 'concierge', 'transit', 'essentials'].includes(activeTab);
+function DashboardRoute() {
+  const { businesses, loading, error } = useBusinesses();
+
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+
+  const byIsland = countBy(businesses, (item: BusinessRecord) => item.island);
+  const byCategory = countBy(businesses, (item: BusinessRecord) => item.category);
+  const totalValue = Math.round(businesses.reduce((sum, b) => sum + estimatePipelineValue(b), 0));
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      <header className="bg-gradient-to-br from-sky-800 via-sky-600 to-sky-400 text-white">
-        <div className="sticky top-0 z-40 border-b border-white/20 bg-white/10 backdrop-blur-lg">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 sm:px-6">
-            <span className="rounded-lg border border-white/20 bg-white/10 px-3 py-1 text-[10px] font-black uppercase">Admin</span>
-            <h1 className="text-sm font-black uppercase tracking-wide sm:text-xl">STT Insider Pro</h1>
-            <button className="text-[10px] font-bold uppercase">Support</button>
-          </div>
-        </div>
+    <div className="space-y-6">
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label="Businesses" value={String(businesses.length)} />
+        <MetricCard label="High Priority" value={String(businesses.filter((b) => (b.scores?.priorityScore ?? 0) >= 70).length)} />
+        <MetricCard label="Pipeline Value" value={`$${totalValue.toLocaleString()}`} />
+        <MetricCard label="Responded+" value={String(businesses.filter((b) => ["responded", "meeting_booked", "proposal_sent", "won"].includes(b.pipelineStage ?? "")).length)} />
+      </section>
 
-        <div className="mx-auto max-w-7xl px-4 pb-12 pt-8 text-center sm:px-6 md:pt-12">
-          <span className="inline-block rounded-full border border-white/20 bg-sky-400/30 px-3 py-1 text-[10px] font-black uppercase">The definitive St. Thomas guide</span>
-          <h2 className="mt-4 text-4xl font-black leading-none tracking-tight sm:text-6xl">Island <br />Discovery.</h2>
-
-          <div className="mx-auto mt-8 max-w-5xl rounded-3xl border border-white/20 bg-white p-2 text-slate-800 shadow-2xl">
-            <div className="flex flex-col gap-2">
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search dining, beaches, shops..."
-                className="w-full rounded-2xl bg-slate-100 px-4 py-4 text-sm font-semibold outline-none"
-              />
-              <div className="no-scrollbar flex overflow-x-auto rounded-2xl bg-slate-100 p-1.5 text-[10px] font-black uppercase">
-                {[
-                  ['places', 'Home'], ['concierge', 'Concierge'], ['transit', 'Transit'], ['beaches', 'Beaches'],
-                  ['restaurants', 'Dining'], ['shops', 'Shops'], ['passport', 'Passport']
-                ].map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setActiveTab(id as Tab)}
-                    className={`whitespace-nowrap rounded-xl px-4 py-2 transition ${activeTab === id ? 'bg-white text-sky-700 shadow' : 'text-slate-500'}`}
-                  >{label}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-7xl p-4 pb-24 sm:p-6">
-        {utilityTab ? (
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 text-center">
-            <h3 className="text-2xl font-black">{activeTab.toUpperCase()}</h3>
-            <p className="mt-2 text-sm text-slate-500">This utility module is ready for your app integrations.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filtered.map((item) => (
-              <article key={item.id} className="overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm">
-                <img src={item.image} alt={item.name} className="h-52 w-full object-cover" />
-                <div className="space-y-3 p-6">
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-xl font-extrabold text-slate-900">{item.name}</h3>
-                    <span className="text-sm font-bold text-amber-500">★ {item.rating}</span>
-                  </div>
-                  <p className="text-sm text-slate-500">{item.description}</p>
-                  <button onClick={() => setSelected(item)} className="w-full rounded-2xl bg-sky-600 py-3 text-[10px] font-black uppercase text-white">Details & booking</button>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </main>
-
-      {selected && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-auto rounded-3xl bg-white">
-            <img src={selected.image} alt={selected.name} className="h-64 w-full object-cover" />
-            <div className="space-y-4 p-6 sm:p-8">
-              <div className="flex items-center justify-between">
-                <h4 className="text-3xl font-black">{selected.name}</h4>
-                <button onClick={() => setSelected(null)} className="rounded-full bg-slate-100 px-3 py-1 text-sm font-bold">Close</button>
-              </div>
-              <p className="text-sm text-slate-500">{selected.description}</p>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selected.location)}`} target="_blank" rel="noreferrer" className="rounded-2xl border-2 border-sky-600 py-3 text-center text-[10px] font-black uppercase text-sky-600">Directions</a>
-                <button className="rounded-2xl bg-amber-400 py-3 text-[10px] font-black uppercase text-sky-900">Authenticate stamp</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <button className="fixed bottom-5 right-5 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-sky-600 text-3xl text-white shadow-xl sm:bottom-8 sm:right-8 sm:h-16 sm:w-16">+</button>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <ListCard title="By Island" entries={Object.entries(byIsland)} />
+        <ListCard title="Top Categories" entries={Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 6)} />
+      </section>
     </div>
   );
+}
+
+function BusinessesRoute() {
+  const { businesses, loading, error } = useBusinesses();
+  const [search, setSearch] = React.useState("");
+
+  if (loading) return <LoadingState />;
+  if (error) return <ErrorState message={error} />;
+
+  const filtered = businesses.filter((business) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+
+    const haystack = [
+      business.name,
+      business.category,
+      business.island,
+      business.description,
+      business.ownerName,
+      business.notes,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(q);
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+        <input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm"
+          placeholder="Search businesses, categories, notes..."
+        />
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+        <table className="min-w-full divide-y divide-slate-800 text-sm">
+          <thead className="bg-slate-900/80 text-slate-400">
+            <tr>
+              <th className="px-4 py-3 text-left">Business</th>
+              <th className="px-4 py-3 text-left">Island</th>
+              <th className="px-4 py-3 text-left">Category</th>
+              <th className="px-4 py-3 text-left">Stage</th>
+              <th className="px-4 py-3 text-left">Priority</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {filtered.map((business) => (
+              <tr key={business.id} className="hover:bg-slate-800/40">
+                <td className="px-4 py-3">
+                  <Link className="font-medium text-sky-300 hover:text-sky-200" to={`/businesses/${business.id}`}>
+                    {business.name}
+                  </Link>
+                </td>
+                <td className="px-4 py-3">{label(business.island)}</td>
+                <td className="px-4 py-3">{label(business.category)}</td>
+                <td className="px-4 py-3">{label(business.pipelineStage ?? "discovered")}</td>
+                <td className="px-4 py-3">{business.scores?.priorityScore ?? 0}</td>
+              </tr>
+            ))}
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">No businesses found.</td>
+              </tr>
+            ) : null}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function BusinessDetailRoute() {
+  const params = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [business, setBusiness] = React.useState<BusinessRecord | null>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = React.useState("");
+  const [stage, setStage] = React.useState<PipelineStage>("discovered");
+  const [busy, setBusy] = React.useState(false);
+
+  const businessId = params.id;
+
+  const refresh = React.useCallback(async () => {
+    if (!businessId) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const next = await getBusinessById(businessId);
+      if (!next) {
+        setError("Business not found.");
+        setBusiness(null);
+        return;
+      }
+      setBusiness(next);
+      setNoteDraft(next.notes ?? "");
+      setStage(next.pipelineStage ?? "discovered");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to load business.");
+    } finally {
+      setLoading(false);
+    }
+  }, [businessId]);
+
+  React.useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  if (!businessId) return <ErrorState message="Missing business ID." />;
+  if (loading) return <LoadingState />;
+  if (error || !business) return <ErrorState message={error ?? "Business not found."} />;
+
+  async function saveNotes() {
+    setBusy(true);
+    try {
+      await updateBusiness(business.id, { notes: noteDraft });
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveStage() {
+    setBusy(true);
+    try {
+      await setPipelineStage(business.id, stage);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function generateAudit() {
+    setBusy(true);
+    try {
+      const audit = generateDeterministicAudit(business);
+      await updateBusiness(business.id, { audit });
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      <button className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800" onClick={() => navigate("/businesses")}>Back to businesses</button>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
+        <h2 className="text-2xl font-semibold">{business.name}</h2>
+        <p className="mt-1 text-sm text-slate-400">{label(business.category)} • {label(business.island)}</p>
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          <Tag>{label(business.pipelineStage ?? "discovered")}</Tag>
+          <Tag>Priority {business.scores?.priorityScore ?? 0}</Tag>
+          <Tag>Value ${Math.round(estimatePipelineValue(business)).toLocaleString()}</Tag>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
+          <h3 className="font-semibold">Operator Controls</h3>
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-wide text-slate-400">Pipeline stage</label>
+            <select value={stage} onChange={(e) => setStage(e.target.value as PipelineStage)} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm">
+              {PIPELINE_STAGES.map((item) => <option key={item} value={item}>{label(item)}</option>)}
+            </select>
+            <button disabled={busy} onClick={() => void saveStage()} className="mt-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-900 disabled:opacity-50">Save stage</button>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs uppercase tracking-wide text-slate-400">Notes</label>
+            <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} rows={5} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm" />
+            <button disabled={busy} onClick={() => void saveNotes()} className="mt-2 rounded-lg border border-slate-700 px-3 py-2 text-sm disabled:opacity-50">Save notes</button>
+          </div>
+
+          <button disabled={busy} onClick={() => void generateAudit()} className="rounded-lg bg-sky-400 px-3 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50">
+            Generate deterministic audit
+          </button>
+        </div>
+
+        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-3">
+          <h3 className="font-semibold">Audit</h3>
+          <p className="text-sm text-slate-300">{business.audit?.summary ?? "No audit yet."}</p>
+          <AuditList title="Strengths" values={business.audit?.strengths} />
+          <AuditList title="Weaknesses" values={business.audit?.weaknesses} />
+          <AuditList title="Opportunities" values={business.audit?.opportunities} />
+          <p className="text-sm text-slate-300"><strong>Offer:</strong> {business.audit?.recommendedOffer ?? "—"}</p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function useBusinesses() {
+  const [businesses, setBusinesses] = React.useState<BusinessRecord[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let active = true;
+
+    (async () => {
+      try {
+        const data = await getAllBusinesses();
+        if (active) setBusinesses(data);
+      } catch (caught) {
+        if (active) setError(caught instanceof Error ? caught.message : "Failed to load businesses.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return { businesses, loading, error };
+}
+
+function countBy<T>(values: T[], keyFn: (value: T) => string) {
+  return values.reduce<Record<string, number>>((acc, value) => {
+    const key = keyFn(value);
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
+function label(value: string) {
+  return value
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="mt-2 text-2xl font-semibold">{value}</p>
+    </article>
+  );
+}
+
+function ListCard({ title, entries }: { title: string; entries: Array<[string, number]> }) {
+  return (
+    <article className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+      <h3 className="font-semibold">{title}</h3>
+      <ul className="mt-3 space-y-2 text-sm">
+        {entries.map(([name, count]) => (
+          <li key={name} className="flex items-center justify-between text-slate-300">
+            <span>{label(name)}</span>
+            <strong>{count}</strong>
+          </li>
+        ))}
+      </ul>
+    </article>
+  );
+}
+
+function Tag({ children }: { children: React.ReactNode }) {
+  return <span className="rounded-full border border-slate-700 bg-slate-800/50 px-2.5 py-1">{children}</span>;
+}
+
+function AuditList({ title, values }: { title: string; values?: string[] }) {
+  return (
+    <div>
+      <p className="text-xs uppercase tracking-wide text-slate-400">{title}</p>
+      <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-slate-300">
+        {(values && values.length > 0 ? values : ["—"]).map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function LoadingState() {
+  return <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-8 text-center text-slate-400">Loading...</div>;
+}
+
+function ErrorState({ message }: { message: string }) {
+  return <div className="rounded-2xl border border-rose-800 bg-rose-900/20 p-8 text-center text-rose-200">{message}</div>;
 }

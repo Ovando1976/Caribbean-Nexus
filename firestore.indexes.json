@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "usviBusinesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "scores.priorityScore",
+          "order": "DESCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "usviBusinesses",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "pipelineStage",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "scores.priorityScore",
+          "order": "DESCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

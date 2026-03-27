@@ -1,0 +1,156 @@
+[
+  {
+    "name": "Harbor View Bistro",
+    "island": "st_thomas",
+    "category": "restaurant",
+    "status": "active",
+    "description": "Waterfront casual dining in Charlotte Amalie with heavy cruise traffic.",
+    "phone": "+1-340-555-0101",
+    "website": "harborviewbistrovi.com",
+    "address": {
+      "city": "Charlotte Amalie",
+      "district": "St. Thomas",
+      "country": "USVI"
+    },
+    "digitalPresence": {
+      "hasWebsite": true,
+      "hasOnlineMenu": false,
+      "hasOnlineOrdering": false,
+      "hasSocialPresence": true,
+      "hasRecentSocialActivity": false,
+      "hasGoogleBusinessProfile": true
+    },
+    "reviewMetrics": {
+      "reviewCount": 143,
+      "rating": 4.3
+    },
+    "pipelineStage": "discovered",
+    "source": {
+      "source": "seed_dataset"
+    }
+  },
+  {
+    "name": "Coral Bay Villas",
+    "island": "st_john",
+    "category": "tourism_hospitality",
+    "status": "active",
+    "description": "Boutique villa rental management for short-term visitors.",
+    "email": "bookings@coralbayvillas.com",
+    "website": "https://coralbayvillas.com",
+    "address": {
+      "city": "Coral Bay",
+      "district": "St. John",
+      "country": "USVI"
+    },
+    "digitalPresence": {
+      "hasWebsite": true,
+      "hasOnlineBooking": true,
+      "hasSocialPresence": true,
+      "hasRecentSocialActivity": true,
+      "hasGoogleBusinessProfile": true
+    },
+    "reviewMetrics": {
+      "reviewCount": 39,
+      "rating": 4.8
+    },
+    "pipelineStage": "qualified",
+    "source": {
+      "source": "seed_dataset"
+    }
+  },
+  {
+    "name": "Frederiksted Auto Care",
+    "island": "st_croix",
+    "category": "automotive",
+    "status": "active",
+    "phone": "+1-340-555-0103",
+    "address": {
+      "city": "Frederiksted",
+      "district": "St. Croix",
+      "country": "USVI"
+    },
+    "digitalPresence": {
+      "hasWebsite": false,
+      "hasSocialPresence": false,
+      "hasGoogleBusinessProfile": false
+    },
+    "reviewMetrics": {
+      "reviewCount": 12,
+      "rating": 3.9
+    },
+    "pipelineStage": "discovered",
+    "source": {
+      "source": "seed_dataset"
+    }
+  },
+  {
+    "name": "Island Glow Spa",
+    "island": "st_thomas",
+    "category": "health_beauty",
+    "status": "lead",
+    "email": "hello@islandglowspa.vi",
+    "social": {
+      "instagram": "@islandglowspa"
+    },
+    "digitalPresence": {
+      "hasWebsite": false,
+      "hasOnlineBooking": false,
+      "hasSocialPresence": true,
+      "hasRecentSocialActivity": true,
+      "hasGoogleBusinessProfile": false
+    },
+    "pipelineStage": "contacted",
+    "source": {
+      "source": "seed_dataset"
+    }
+  },
+  {
+    "name": "North Shore Realty USVI",
+    "island": "st_croix",
+    "category": "real_estate",
+    "status": "active",
+    "phone": "+1-340-555-0105",
+    "website": "northshorerealtyusvi.com",
+    "digitalPresence": {
+      "hasWebsite": true,
+      "hasOnlineBooking": true,
+      "hasSocialPresence": true,
+      "hasRecentSocialActivity": false,
+      "hasGoogleBusinessProfile": true
+    },
+    "reviewMetrics": {
+      "reviewCount": 67,
+      "rating": 4.6
+    },
+    "pipelineStage": "responded",
+    "source": {
+      "source": "seed_dataset"
+    }
+  },
+  {
+    "name": "Cruz Bay Market",
+    "island": "st_john",
+    "category": "grocery",
+    "status": "active",
+    "phone": "+1-340-555-0106",
+    "address": {
+      "city": "Cruz Bay",
+      "district": "St. John",
+      "country": "USVI"
+    },
+    "digitalPresence": {
+      "hasWebsite": false,
+      "hasSocialPresence": true,
+      "hasRecentSocialActivity": false,
+      "hasGoogleBusinessProfile": true
+    },
+    "reviewMetrics": {
+      "reviewCount": 203,
+      "rating": 4.1
+    },
+    "pipelineStage": "enriched",
+    "source": {
+      "source": "seed_dataset"
+    }
+  }
+]
