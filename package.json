@@ -8,7 +8,11 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx --test test/**/*.test.ts",
+    "seed:usvi": "tsx scripts/seed-usvi-businesses.ts",
+    "seed:usvi-businesses": "tsx scripts/seed-usvi-businesses.ts",
+    "seed:usvi:dry-run": "tsx scripts/seed-usvi-businesses.ts --dry-run"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
