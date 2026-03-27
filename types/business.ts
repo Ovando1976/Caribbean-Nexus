@@ -35,6 +35,22 @@ export const PIPELINE_STAGES = [
 ] as const;
 export type PipelineStage = (typeof PIPELINE_STAGES)[number];
 
+export const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
+export type ConfidenceLevel = (typeof CONFIDENCE_LEVELS)[number];
+
+export type FieldProvenance = {
+  source: string;
+  sourceUrl?: string;
+  observedAt?: string;
+  confidence?: ConfidenceLevel;
+  notes?: string;
+};
+
+export type VerifiedField<T> = {
+  value?: T;
+  provenance?: FieldProvenance;
+};
+
 export type SocialLinks = {
   facebook?: string;
   instagram?: string;
@@ -74,6 +90,7 @@ export type BusinessScores = {
   valuePotentialScore?: number;
   closeLikelihoodScore?: number;
   priorityScore?: number;
+  completenessScore?: number;
 };
 
 export type ReviewMetrics = {
@@ -105,15 +122,30 @@ export type BusinessActivity = {
     | "outreach_generated"
     | "pipeline_changed"
     | "note_added"
-    | "contacted";
+    | "contacted"
+    | "merged"
+    | "verified";
   message: string;
   createdAt: string;
   actor?: string;
 };
 
+export type BusinessVerification = {
+  legalName?: VerifiedField<string>;
+  entityStatus?: VerifiedField<string>;
+  phone?: VerifiedField<string>;
+  email?: VerifiedField<string>;
+  website?: VerifiedField<string>;
+  address?: VerifiedField<AddressRecord>;
+  geo?: VerifiedField<GeoRecord>;
+  category?: VerifiedField<BusinessCategory>;
+};
+
 export type BusinessRecord = {
   id: string;
+
   name: string;
+  nameNormalized?: string;
   legalName?: string;
 
   island: IslandCode;
@@ -143,13 +175,21 @@ export type BusinessRecord = {
   audit?: BusinessAuditSummary;
 
   source?: BusinessSource;
+  verification?: BusinessVerification;
+
+  mergeKeys?: string[];
+  duplicateOf?: string | null;
+  lastVerifiedAt?: string;
+  lastEnrichedAt?: string;
+
+  rawSourceIds?: string[];
+  activities?: BusinessActivity[];
 
   createdAt?: string;
   updatedAt?: string;
 };
 
 export type BusinessInput = Omit<BusinessRecord, "id" | "createdAt" | "updatedAt">;
-
 export type BusinessUpdate = Partial<BusinessInput>;
 
 export type BusinessFilters = {
@@ -158,6 +198,7 @@ export type BusinessFilters = {
   status?: BusinessStatus | "all";
   pipelineStage?: PipelineStage | "all";
   minPriorityScore?: number;
+  minCompletenessScore?: number;
   search?: string;
 };
 
@@ -167,6 +208,7 @@ export const DEFAULT_BUSINESS_SCORES: Required<BusinessScores> = {
   valuePotentialScore: 0,
   closeLikelihoodScore: 0,
   priorityScore: 0,
+  completenessScore: 0,
 };
 
 export function isIslandCode(value: string): value is IslandCode {

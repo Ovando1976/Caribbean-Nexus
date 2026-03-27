@@ -1,0 +1,35 @@
+[
+    {
+      "name": "Harbor View Bistro",
+      "legalName": "Harbor View Bistro LLC",
+      "island": "st_thomas",
+      "category": "restaurant",
+      "subcategory": "casual dining",
+      "status": "active",
+      "description": "Waterfront casual dining in Charlotte Amalie.",
+      "phone": "+1-340-555-0101",
+      "email": "hello@harborviewbistro.com",
+      "website": "harborviewbistrovi.com",
+      "address": {
+        "addressLine1": "12 Waterfront Lane",
+        "city": "Charlotte Amalie",
+        "district": "St. Thomas-St. John",
+        "postalCode": "00802",
+        "country": "USVI"
+      },
+      "digitalPresence": {
+        "hasWebsite": true,
+        "hasOnlineMenu": false,
+        "hasOnlineBooking": false,
+        "hasOnlineOrdering": false,
+        "hasSocialPresence": true,
+        "hasRecentSocialActivity": false,
+        "hasGoogleBusinessProfile": true
+      },
+      "pipelineStage": "discovered",
+      "source": {
+        "source": "manual_dataset",
+        "sourceUrl": "local-collection"
+      }
+    }
+  ]

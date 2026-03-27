@@ -10,19 +10,26 @@ import {
   serverTimestamp,
   updateDoc,
   writeBatch,
+  deleteDoc, 
+  doc,
   type DocumentData,
-  type DocumentSnapshot,
   type QueryDocumentSnapshot,
 } from "firebase/firestore";
 
 import { db } from "@/lib/firebase";
+import { scoreBusiness } from "@/lib/scoring";
+import {
+  buildBusinessMergeKeys,
+  normalizeAddress,
+  normalizeBusinessName,
+  normalizePhone,
+} from "@/lib/business-normalize";
 import type {
   BusinessInput,
   BusinessRecord,
   BusinessUpdate,
   PipelineStage,
 } from "@/types/business";
-import { scoreBusiness } from "@/lib/scoring";
 
 const COLLECTION_NAME = "usviBusinesses";
 
@@ -32,7 +39,6 @@ function businessesCollection() {
 
 function toIsoString(value: unknown): string | undefined {
   if (!value) return undefined;
-
   if (typeof value === "string") return value;
 
   if (
@@ -45,44 +51,6 @@ function toIsoString(value: unknown): string | undefined {
   }
 
   return undefined;
-}
-
-function mapBusinessDoc(
-  snapshot: QueryDocumentSnapshot<DocumentData> | DocumentSnapshot<DocumentData>,
-): BusinessRecord {
-  const data = snapshot.data();
-  if (!data) {
-    throw new Error("Business document does not exist.");
-  }
-
-  return {
-    id: snapshot.id,
-    name: data.name ?? "",
-    legalName: data.legalName,
-    island: data.island,
-    category: data.category,
-    subcategory: data.subcategory,
-    status: data.status ?? "unspecified",
-    description: data.description,
-    phone: data.phone,
-    email: data.email,
-    website: data.website,
-    ownerName: data.ownerName,
-    address: data.address ?? {},
-    geo: data.geo ?? {},
-    social: data.social ?? {},
-    tags: Array.isArray(data.tags) ? data.tags : [],
-    pipelineStage: data.pipelineStage,
-    notes: data.notes,
-    lastContactedAt: data.lastContactedAt,
-    reviewMetrics: data.reviewMetrics ?? {},
-    digitalPresence: data.digitalPresence ?? {},
-    scores: data.scores ?? {},
-    audit: data.audit ?? {},
-    source: data.source ?? {},
-    createdAt: toIsoString(data.createdAt),
-    updatedAt: toIsoString(data.updatedAt),
-  };
 }
 
 function removeUndefinedDeep<T>(value: T): T {
@@ -104,24 +72,79 @@ function removeUndefinedDeep<T>(value: T): T {
 }
 
 function nullableString(value?: string) {
-  return value && value.trim().length > 0 ? value : null;
+  return value && value.trim().length > 0 ? value.trim() : null;
 }
 
-function buildBusinessPayload(input: BusinessInput | BusinessRecord | BusinessUpdate) {
-  const partialRecord = {
+function mapBusinessDoc(
+  snapshot:
+    | QueryDocumentSnapshot<DocumentData>
+    | Awaited<ReturnType<typeof getDoc>>
+): BusinessRecord {
+  const raw = snapshot.data() as DocumentData | undefined;
+
+  if (!raw) {
+    throw new Error("Business document does not exist.");
+  }
+
+  return {
+    id: snapshot.id,
+    name: raw.name ?? "",
+    nameNormalized: raw.nameNormalized,
+    legalName: raw.legalName,
+    island: raw.island,
+    category: raw.category,
+    subcategory: raw.subcategory,
+    status: raw.status ?? "unspecified",
+    description: raw.description,
+    phone: raw.phone,
+    email: raw.email,
+    website: raw.website,
+    ownerName: raw.ownerName,
+    address: raw.address ?? {},
+    geo: raw.geo ?? {},
+    social: raw.social ?? {},
+    tags: Array.isArray(raw.tags) ? raw.tags : [],
+    pipelineStage: raw.pipelineStage,
+    notes: raw.notes,
+    lastContactedAt: raw.lastContactedAt,
+    reviewMetrics: raw.reviewMetrics ?? {},
+    digitalPresence: raw.digitalPresence ?? {},
+    scores: raw.scores ?? {},
+    audit: raw.audit ?? {},
+    source: raw.source ?? {},
+    verification: raw.verification ?? {},
+    mergeKeys: Array.isArray(raw.mergeKeys) ? raw.mergeKeys : [],
+    duplicateOf: raw.duplicateOf ?? null,
+    lastVerifiedAt: raw.lastVerifiedAt,
+    lastEnrichedAt: raw.lastEnrichedAt,
+    rawSourceIds: Array.isArray(raw.rawSourceIds) ? raw.rawSourceIds : [],
+    activities: Array.isArray(raw.activities) ? raw.activities : [],
+    createdAt: toIsoString(raw.createdAt),
+    updatedAt: toIsoString(raw.updatedAt),
+  };
+}
+
+function buildBusinessPayload(
+  input: BusinessInput | BusinessRecord | BusinessUpdate
+) {
+  const normalizedAddress = normalizeAddress(input.address);
+  const normalizedPhone = normalizePhone(input.phone);
+
+  const partialRecord: BusinessRecord = {
     id: "temp",
     name: input.name ?? "",
+    nameNormalized: input.name ? normalizeBusinessName(input.name) : undefined,
+    legalName: input.legalName,
     island: (input as BusinessInput).island ?? "st_thomas",
     category: (input as BusinessInput).category ?? "other",
-    status: (input as BusinessInput).status ?? "unspecified",
-    legalName: input.legalName,
     subcategory: input.subcategory,
+    status: (input as BusinessInput).status ?? "unspecified",
     description: input.description,
-    phone: input.phone,
+    phone: normalizedPhone ?? input.phone,
     email: input.email,
     website: input.website,
     ownerName: input.ownerName,
-    address: input.address ?? {},
+    address: normalizedAddress ?? {},
     geo: input.geo ?? {},
     social: input.social ?? {},
     tags: input.tags ?? [],
@@ -132,12 +155,23 @@ function buildBusinessPayload(input: BusinessInput | BusinessRecord | BusinessUp
     digitalPresence: input.digitalPresence ?? {},
     audit: input.audit ?? {},
     source: input.source ?? {},
-  } as BusinessRecord;
+    verification: input.verification ?? {},
+    duplicateOf: input.duplicateOf ?? null,
+    lastVerifiedAt: input.lastVerifiedAt,
+    lastEnrichedAt: input.lastEnrichedAt,
+    rawSourceIds: input.rawSourceIds ?? [],
+    activities: input.activities ?? [],
+  };
 
-  const scores = scoreBusiness(partialRecord);
+  const mergeKeys = buildBusinessMergeKeys(partialRecord);
+  const scores = scoreBusiness({
+    ...partialRecord,
+    mergeKeys,
+  });
 
   return removeUndefinedDeep({
     name: partialRecord.name,
+    nameNormalized: nullableString(partialRecord.nameNormalized),
     legalName: nullableString(partialRecord.legalName),
     island: partialRecord.island,
     category: partialRecord.category,
@@ -164,7 +198,9 @@ function buildBusinessPayload(input: BusinessInput | BusinessRecord | BusinessUp
     social: {
       facebook: nullableString(partialRecord.social?.facebook),
       instagram: nullableString(partialRecord.social?.instagram),
-      googleBusinessProfile: nullableString(partialRecord.social?.googleBusinessProfile),
+      googleBusinessProfile: nullableString(
+        partialRecord.social?.googleBusinessProfile
+      ),
       tiktok: nullableString(partialRecord.social?.tiktok),
       linkedin: nullableString(partialRecord.social?.linkedin),
     },
@@ -180,10 +216,14 @@ function buildBusinessPayload(input: BusinessInput | BusinessRecord | BusinessUp
       hasWebsite: partialRecord.digitalPresence?.hasWebsite ?? null,
       hasOnlineMenu: partialRecord.digitalPresence?.hasOnlineMenu ?? null,
       hasOnlineBooking: partialRecord.digitalPresence?.hasOnlineBooking ?? null,
-      hasOnlineOrdering: partialRecord.digitalPresence?.hasOnlineOrdering ?? null,
-      hasSocialPresence: partialRecord.digitalPresence?.hasSocialPresence ?? null,
-      hasRecentSocialActivity: partialRecord.digitalPresence?.hasRecentSocialActivity ?? null,
-      hasGoogleBusinessProfile: partialRecord.digitalPresence?.hasGoogleBusinessProfile ?? null,
+      hasOnlineOrdering:
+        partialRecord.digitalPresence?.hasOnlineOrdering ?? null,
+      hasSocialPresence:
+        partialRecord.digitalPresence?.hasSocialPresence ?? null,
+      hasRecentSocialActivity:
+        partialRecord.digitalPresence?.hasRecentSocialActivity ?? null,
+      hasGoogleBusinessProfile:
+        partialRecord.digitalPresence?.hasGoogleBusinessProfile ?? null,
     },
     audit: {
       summary: nullableString(partialRecord.audit?.summary),
@@ -191,68 +231,82 @@ function buildBusinessPayload(input: BusinessInput | BusinessRecord | BusinessUp
       weaknesses: partialRecord.audit?.weaknesses ?? [],
       opportunities: partialRecord.audit?.opportunities ?? [],
       recommendedOffer: nullableString(partialRecord.audit?.recommendedOffer),
-      recommendedMonthlyValue: partialRecord.audit?.recommendedMonthlyValue ?? null,
+      recommendedMonthlyValue:
+        partialRecord.audit?.recommendedMonthlyValue ?? null,
     },
     source: {
       source: nullableString(partialRecord.source?.source),
       sourceUrl: nullableString(partialRecord.source?.sourceUrl),
     },
+    verification: partialRecord.verification ?? {},
+    mergeKeys,
+    duplicateOf: partialRecord.duplicateOf ?? null,
+    lastVerifiedAt: nullableString(partialRecord.lastVerifiedAt),
+    lastEnrichedAt: new Date().toISOString(),
+    rawSourceIds: partialRecord.rawSourceIds ?? [],
+    activities: partialRecord.activities ?? [],
     scores,
   });
 }
 
-export async function getAllBusinesses(): Promise<BusinessRecord[]> {
-  const q = query(businessesCollection(), orderBy("scores.priorityScore", "desc"), limit(500));
 
+export async function deleteBusiness(id: string) {
+  await deleteDoc(doc(db, "usviBusinesses", id));
+}
+
+export async function getAllBusinesses(): Promise<BusinessRecord[]> {
+  const q = query(
+    businessesCollection(),
+    orderBy("scores.priorityScore", "desc"),
+    limit(500)
+  );
   const snapshot = await getDocs(q);
   return snapshot.docs.map(mapBusinessDoc);
 }
 
-export async function getBusinessById(id: string): Promise<BusinessRecord | null> {
-  const ref = doc(db, COLLECTION_NAME, id);
-  const snapshot = await getDoc(ref);
+export async function getTopPriorityBusinesses(
+  count = 20
+): Promise<BusinessRecord[]> {
+  const q = query(
+    businessesCollection(),
+    orderBy("scores.priorityScore", "desc"),
+    limit(count)
+  );
+  const snapshot = await getDocs(q);
+  return snapshot.docs.map(mapBusinessDoc);
+}
 
-  if (!snapshot.exists()) {
-    return null;
-  }
-
+export async function getBusinessById(
+  id: string
+): Promise<BusinessRecord | null> {
+  const snapshot = await getDoc(doc(db, COLLECTION_NAME, id));
+  if (!snapshot.exists()) return null;
   return mapBusinessDoc(snapshot);
 }
 
 export async function createBusiness(input: BusinessInput): Promise<string> {
   const payload = buildBusinessPayload(input);
-
   const ref = await addDoc(businessesCollection(), {
     ...payload,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
-
   return ref.id;
 }
 
-export async function updateBusiness(id: string, updates: BusinessUpdate): Promise<void> {
+export async function updateBusiness(
+  id: string,
+  updates: BusinessUpdate
+): Promise<void> {
   const existing = await getBusinessById(id);
-
-  if (!existing) {
-    throw new Error(`Business with id "${id}" not found.`);
-  }
+  if (!existing) throw new Error(`Business with id "${id}" not found.`);
 
   const merged: BusinessRecord = {
     ...existing,
     ...updates,
-    address: {
-      ...existing.address,
-      ...(updates.address ?? {}),
-    },
-    geo: {
-      ...existing.geo,
-      ...(updates.geo ?? {}),
-    },
-    social: {
-      ...existing.social,
-      ...(updates.social ?? {}),
-    },
+    address: { ...existing.address, ...(updates.address ?? {}) },
+    geo: { ...existing.geo, ...(updates.geo ?? {}) },
+    social: { ...existing.social, ...(updates.social ?? {}) },
     reviewMetrics: {
       ...existing.reviewMetrics,
       ...(updates.reviewMetrics ?? {}),
@@ -261,30 +315,27 @@ export async function updateBusiness(id: string, updates: BusinessUpdate): Promi
       ...existing.digitalPresence,
       ...(updates.digitalPresence ?? {}),
     },
-    audit: {
-      ...existing.audit,
-      ...(updates.audit ?? {}),
-    },
-    source: {
-      ...existing.source,
-      ...(updates.source ?? {}),
-    },
+    audit: { ...existing.audit, ...(updates.audit ?? {}) },
+    source: { ...existing.source, ...(updates.source ?? {}) },
+    verification: { ...existing.verification, ...(updates.verification ?? {}) },
   };
 
   const payload = buildBusinessPayload(merged);
-
   await updateDoc(doc(db, COLLECTION_NAME, id), {
     ...payload,
     updatedAt: serverTimestamp(),
   });
 }
 
-export async function setPipelineStage(id: string, pipelineStage: PipelineStage): Promise<void> {
+export async function setPipelineStage(
+  id: string,
+  pipelineStage: PipelineStage
+): Promise<void> {
   await updateBusiness(id, { pipelineStage });
 }
 
 export async function bulkUpsertBusinesses(
-  businesses: Array<BusinessInput & { id?: string }>,
+  businesses: Array<BusinessInput & { id?: string }>
 ): Promise<void> {
   const batch = writeBatch(db);
 
@@ -292,18 +343,16 @@ export async function bulkUpsertBusinesses(
     const payload = buildBusinessPayload(business);
 
     if (business.id) {
-      const ref = doc(db, COLLECTION_NAME, business.id);
       batch.set(
-        ref,
+        doc(db, COLLECTION_NAME, business.id),
         {
           ...payload,
           updatedAt: serverTimestamp(),
         },
-        { merge: true },
+        { merge: true }
       );
     } else {
-      const ref = doc(businessesCollection());
-      batch.set(ref, {
+      batch.set(doc(businessesCollection()), {
         ...payload,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -312,11 +361,4 @@ export async function bulkUpsertBusinesses(
   }
 
   await batch.commit();
-}
-
-export async function getTopPriorityBusinesses(count = 20): Promise<BusinessRecord[]> {
-  const q = query(businessesCollection(), orderBy("scores.priorityScore", "desc"), limit(count));
-
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(mapBusinessDoc);
 }

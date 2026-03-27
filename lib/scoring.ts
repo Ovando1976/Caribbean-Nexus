@@ -4,6 +4,7 @@ import type {
   BusinessScores,
   DigitalPresenceFlags,
 } from "@/types/business";
+import { calculateCompletenessScore } from "@/lib/completeness";
 
 function clamp(value: number, min = 0, max = 100): number {
   return Math.max(min, Math.min(max, value));
@@ -16,18 +17,22 @@ function normalizeText(value?: string): string {
 function hasMeaningfulWebsite(url?: string): boolean {
   if (!url) return false;
   const value = normalizeText(url);
-  return value.length > 6 && (value.includes(".com") || value.startsWith("http"));
+  return (
+    value.length > 6 && (value.includes(".com") || value.startsWith("http"))
+  );
 }
 
 function hasContactInfo(business: BusinessRecord): boolean {
   return Boolean(
     normalizeText(business.phone) ||
       normalizeText(business.email) ||
-      hasMeaningfulWebsite(business.website),
+      hasMeaningfulWebsite(business.website)
   );
 }
 
-function getPresenceFlags(business: BusinessRecord): Required<DigitalPresenceFlags> {
+function getPresenceFlags(
+  business: BusinessRecord
+): Required<DigitalPresenceFlags> {
   const raw = business.digitalPresence ?? {};
 
   return {
@@ -41,11 +46,12 @@ function getPresenceFlags(business: BusinessRecord): Required<DigitalPresenceFla
         business.social?.facebook ||
           business.social?.instagram ||
           business.social?.tiktok ||
-          business.social?.linkedin,
+          business.social?.linkedin
       ),
     hasRecentSocialActivity: raw.hasRecentSocialActivity ?? false,
     hasGoogleBusinessProfile:
-      raw.hasGoogleBusinessProfile ?? Boolean(business.social?.googleBusinessProfile),
+      raw.hasGoogleBusinessProfile ??
+      Boolean(business.social?.googleBusinessProfile),
   };
 }
 
@@ -79,7 +85,9 @@ function getCategoryValueWeight(category: BusinessCategory): number {
   }
 }
 
-export function calculateDigitalMaturityScore(business: BusinessRecord): number {
+export function calculateDigitalMaturityScore(
+  business: BusinessRecord
+): number {
   const flags = getPresenceFlags(business);
 
   let score = 0;
@@ -92,7 +100,10 @@ export function calculateDigitalMaturityScore(business: BusinessRecord): number 
   if (flags.hasOnlineBooking) score += 12;
   if (flags.hasOnlineOrdering) score += 13;
 
-  if (business.reviewMetrics?.reviewCount && business.reviewMetrics.reviewCount > 20) {
+  if (
+    business.reviewMetrics?.reviewCount &&
+    business.reviewMetrics.reviewCount > 20
+  ) {
     score += 5;
   }
 
@@ -114,7 +125,8 @@ export function calculatePainPointScore(business: BusinessRecord): number {
   if (!hasContactInfo(business)) score += 18;
 
   if (business.category === "restaurant" && !flags.hasOnlineMenu) score += 12;
-  if (business.category === "restaurant" && !flags.hasOnlineOrdering) score += 8;
+  if (business.category === "restaurant" && !flags.hasOnlineOrdering)
+    score += 8;
   if (
     (business.category === "tourism_hospitality" ||
       business.category === "health_beauty" ||
@@ -144,14 +156,19 @@ export function calculateValuePotentialScore(business: BusinessRecord): number {
 
   if (rating >= 4.5) score += 3;
 
-  if (business.category === "tourism_hospitality" || business.category === "restaurant") {
+  if (
+    business.category === "tourism_hospitality" ||
+    business.category === "restaurant"
+  ) {
     score += 4;
   }
 
   return clamp(score);
 }
 
-export function calculateCloseLikelihoodScore(business: BusinessRecord): number {
+export function calculateCloseLikelihoodScore(
+  business: BusinessRecord
+): number {
   const flags = getPresenceFlags(business);
 
   let score = 35;
@@ -175,7 +192,9 @@ export function calculateCloseLikelihoodScore(business: BusinessRecord): number 
   return clamp(score);
 }
 
-export function calculatePriorityScore(scores: Required<BusinessScores>): number {
+export function calculatePriorityScore(
+  scores: Required<BusinessScores>
+): number {
   const weighted =
     scores.digitalMaturityScore * 0.15 +
     scores.painPointScore * 0.3 +
@@ -185,11 +204,14 @@ export function calculatePriorityScore(scores: Required<BusinessScores>): number
   return clamp(Math.round(weighted));
 }
 
-export function scoreBusiness(business: BusinessRecord): Required<BusinessScores> {
+export function scoreBusiness(
+  business: BusinessRecord
+): Required<BusinessScores> {
   const digitalMaturityScore = calculateDigitalMaturityScore(business);
   const painPointScore = calculatePainPointScore(business);
   const valuePotentialScore = calculateValuePotentialScore(business);
   const closeLikelihoodScore = calculateCloseLikelihoodScore(business);
+  const completenessScore = calculateCompletenessScore(business);
 
   const priorityScore = calculatePriorityScore({
     digitalMaturityScore,
@@ -197,6 +219,7 @@ export function scoreBusiness(business: BusinessRecord): Required<BusinessScores
     valuePotentialScore,
     closeLikelihoodScore,
     priorityScore: 0,
+    completenessScore: 0,
   });
 
   return {
@@ -205,12 +228,15 @@ export function scoreBusiness(business: BusinessRecord): Required<BusinessScores
     valuePotentialScore,
     closeLikelihoodScore,
     priorityScore,
+    completenessScore,
   };
 }
 
 export function estimatePipelineValue(business: BusinessRecord): number {
-  const scores = business.scores ?? scoreBusiness(business);
-  const base = scores.priorityScore * 125;
+  const fallbackScores = scoreBusiness(business);
+  const priorityScore =
+    business.scores?.priorityScore ?? fallbackScores.priorityScore;
+  const base = priorityScore * 125;
 
   if (business.pipelineStage === "won") return base * 1.2;
   if (business.pipelineStage === "lost") return 0;
